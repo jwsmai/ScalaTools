@@ -1,7 +1,7 @@
 package spark.stream
 
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{col, element_at, split, window}
+import org.apache.spark.sql.functions.{col, count, element_at, max, split, window}
 
 object WordCountWaterMarkWindowExample extends App{
   val spark = SparkSession.builder()
@@ -32,23 +32,16 @@ object WordCountWaterMarkWindowExample extends App{
   val countDf = df.withColumn("inputs", split(df("value"), ","))
     .withColumn("event_time", element_at(col("inputs"), 1).cast("timestamp"))
     .withColumn("word", element_at(col("inputs"), 2))
-
     // 根据event_time计算watermark
     .withWatermark("event_time", "10 minutes")
     // 10 mins windows, sliding every 5mins
-    .groupBy(window(col("event_time"), "10 minutes"), col("word"))
+    .groupBy(window(col("event_time"), "10 minutes", "5 minutes"), col("word"))
     .count()
 
-  /**
-   * 将Word Count结果写入到终端（Console）
-   * Complete mode：输出到目前为止处理过的全部内容
-   * Append mode：仅输出最近一次作业的计算结果
-   * Update mode：仅输出内容有更新的计算结果
-   * */
   countDf.writeStream
     .format("console") // 指定Sink为终端（Console）
     .option("truncate", false) // 指定输出选项,“truncate”选项，用来表明输出内容是否需要截断。
-    // .outputMode("complete")
+//     .outputMode("complete")
     .outputMode("update")
     .start() // 启动流处理应用
     .awaitTermination() // 等待中断指令
